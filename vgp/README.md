@@ -11,7 +11,7 @@ A 1D-CNN on 3 s windows of the 114 live features from `../data-capture/features.
 - `scripts/train_live.py`: training (torch; Modal or local CPU).
 - `live_model.py`: the same model for oplew's runner: `python ../data-capture/main.py live --model live_model:load`.
 
-Current model: grouped 5-fold CV (split by clip; signers seen in training) **95% clip / 96% window accuracy** over Hello, Idle, No, Okay, Thank you (`results/live_cv.json`). Expect much less for a signer who isn't in the training data. **Record the demo signer.**
+Current model: 7 classes (Hello, Help, Idle, No, Okay, Thank you, World), 60 of the 114 features, trained on 146 clips from two recording sessions. 36 more clips (every 5th per class, `results/live_holdout.json`) were held out: on those, **97% clip / 99.5% window accuracy**, and the live decoder emits the right word for 75% of clips with no wrong words. The misses are clips under ~3.5 s, too short for 4 votes. Grouped 5-fold CV on the training clips: 94% clip / 92% window (`results/live_cv.json`). A model trained on the first session alone got ~20% on the second, so expect much less for a signer or session that isn't in the training data. **Record the demo signer.**
 
 ### Demo machine setup (Windows)
 
@@ -65,6 +65,14 @@ modal run modal-gpu/run.py --workdir vgp --cmd "python scripts/train_live.py --e
 ```
 
 This writes `vgp/models/live_cnn.npz` and `vgp/results/live_cv.json`. Commit both, then pull on the demo machine.
+
+To check quality on clips the model never saw, add `--holdout 5`. Every 5th clip per class (in clip-number order, so every recording session is covered) is kept out of CV and the final fit, and listed in `results/live_holdout.json`. Then, from `vgp/`:
+
+```bash
+python scripts/validate_live.py    # clip / window accuracy + which words the live decoder would emit
+```
+
+Clips from the same recording session look alike, so this is still more optimistic than a new signer. Cross-session accuracy was ~20% before the second session was added to training.
 
 ### Tuning on recorded takes (no gloves needed)
 

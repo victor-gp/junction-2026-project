@@ -6,6 +6,9 @@ On Modal (from the repo root; models/ and results/ are copied back):
     modal run modal-gpu/run.py --workdir vgp --cmd "python scripts/train_live.py --eval"
 Locally on CPU (from vgp/; a few minutes):
     uv run --extra cnn python scripts/train_live.py [--eval] [--smoke]
+With a held-out validation set (every 5th clip per class, never trained on):
+    modal run modal-gpu/run.py --workdir vgp --cmd "python scripts/train_live.py --eval --holdout 5"
+    python scripts/validate_live.py        # from vgp/, scores results/live_holdout.json
 
 Classes are the data/ sub-folders (realtime.classes()), so adding a folder (e.g. Help,
 World) just needs a rerun. Accepts Studio CSV exports and `main.py record` output.
@@ -129,6 +132,31 @@ def train(X, y, n_classes, tc: TC, verbose=False):
     return LiveSignModel(meta, weights), model
 
 
+HOLDOUT_FILE = "live_holdout.json"
+
+
+def clip_id(path) -> str:
+    """'<Label>/<file>', the same on every machine (local, Modal)."""
+    p = Path(path)
+    return f"{p.parent.name}/{p.name}"
+
+
+def holdout_clips(paths, every: int) -> set[int]:
+    """Indices of every `every`-th clip per class, in clip-number order. Clip numbers
+    follow recording order, so the held-out set spans all recording sessions."""
+    def num(p):
+        digits = "".join(ch for ch in Path(p).stem if ch.isdigit())
+        return int(digits) if digits else 0
+    by_class: dict[str, list[int]] = {}
+    for i, p in enumerate(paths):
+        by_class.setdefault(Path(p).parent.name, []).append(i)
+    held = set()
+    for idx in by_class.values():
+        idx = sorted(idx, key=lambda i: num(paths[i]))
+        held.update(idx[every // 2::every])
+    return held
+
+
 def grouped_folds(y, groups, k, seed):
     """Stratified by class, grouped by clip."""
     rng = np.random.default_rng(seed)
@@ -176,13 +204,25 @@ def main():
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--smoke", action="store_true", help="2 epochs; saves only with --out")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--holdout", type=int, default=0, metavar="N",
+                    help="keep every Nth clip per class (by clip number) out of CV and the final "
+                         "fit, for scripts/validate_live.py; 0 = train on everything")
     a = ap.parse_args()
     tc = TC(epochs=2 if a.smoke else a.epochs)
 
     t0 = time.time()
     X, y, groups, classes, paths = dataset_windows()
+    if a.holdout:
+        held = holdout_clips(paths, a.holdout)
+        keep = ~np.isin(groups, sorted(held))
+        X, y, groups = X[keep], y[keep], groups[keep]
+        rel = sorted(clip_id(paths[g]) for g in held)
+        (ROOT / "results").mkdir(exist_ok=True)
+        (ROOT / "results" / HOLDOUT_FILE).write_text(json.dumps(
+            {"every": a.holdout, "classes": classes, "clips": rel}, indent=1))
+        print(f"held out {len(rel)} clips (every {a.holdout}th per class) -> results/{HOLDOUT_FILE}")
     per_class = {c: int(len(np.unique(groups[y == i]))) for i, c in enumerate(classes)}
-    print(f"{len(X)} windows from {len(paths)} clips ({time.time() - t0:.0f}s), device {DEVICE}; "
+    print(f"{len(X)} windows from {len(np.unique(groups))} clips ({time.time() - t0:.0f}s), device {DEVICE}; "
           f"clips per class {per_class}", flush=True)
 
     if a.eval:
