@@ -26,8 +26,8 @@ import numpy as np  # noqa: E402
 import torch  # noqa: E402
 from torch import nn  # noqa: E402
 
-from signrec.live import (DEFAULT_MODEL, HAND_COLS, LiveMeta, LiveSignModel,  # noqa: E402
-                          dataset_windows)
+from signrec.live import (DEFAULT_MODEL, HAND_COLS, MIN_STD, LiveMeta,  # noqa: E402
+                          LiveSignModel, dataset_windows)
 from signrec.nn import SignCNN  # noqa: E402
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -54,10 +54,16 @@ class TC:
     hand_freeze: float = 0.1    # prob. of freezing one hand (glove dropout)
 
 
-def active_mask(X: np.ndarray, rel: float = 1e-3) -> np.ndarray:
-    """Features that actually vary (drops the rigid metacarpals and finger bases)."""
-    s = X.reshape(-1, X.shape[-1]).std(0)
-    return np.flatnonzero(s > rel * s.max())
+def active_mask(X: np.ndarray, rel: float = 1e-3, min_std: float = MIN_STD) -> np.ndarray:
+    """Features that actually vary (drops the rigid metacarpals and finger bases).
+
+    Studio's skeleton is rigid, so some features are constant to ~1e-6 in training but
+    differ slightly in the live solver's skeleton. Kept, they get a ~1e-6 std, and a
+    1e-3 live offset turns into a z-score in the hundreds, which saturates the model
+    (it then always predicted one class at 1.00). Hence the absolute floor, and float64:
+    in float32 the rounding error alone is ~4e-4, which let them pass the old threshold."""
+    s = X.reshape(-1, X.shape[-1]).astype(np.float64).std(0)
+    return np.flatnonzero(s > max(rel * s.max(), min_std))
 
 
 def augment_batch(x: np.ndarray, tc: TC, rng, hand_groups) -> np.ndarray:
@@ -84,8 +90,8 @@ def train(X, y, n_classes, tc: TC, verbose=False):
     torch.manual_seed(tc.seed)
     mask = active_mask(X)
     Xm = X[:, :, mask]
-    flat = Xm.reshape(-1, Xm.shape[-1])
-    mean, std = flat.mean(0), np.maximum(flat.std(0), 1e-6)
+    flat = Xm.reshape(-1, Xm.shape[-1]).astype(np.float64)
+    mean, std = flat.mean(0).astype(np.float32), np.maximum(flat.std(0), MIN_STD).astype(np.float32)
     Z = ((Xm - mean) / std).astype(np.float32)
     hand_groups = [np.flatnonzero(np.isin(mask, cols)) for cols in HAND_COLS]
 

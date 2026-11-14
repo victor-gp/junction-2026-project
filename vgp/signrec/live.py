@@ -36,6 +36,9 @@ from features import FEATURE_COLUMNS, hand_local_positions, resample  # noqa: E4
 N_RAW = len(FEATURE_COLUMNS)                    # 114
 HAND_COLS = (np.arange(0, N_RAW // 2), np.arange(N_RAW // 2, N_RAW))   # left, right
 DEFAULT_MODEL = Path(__file__).resolve().parents[1] / "models" / "live_cnn.npz"
+# Features with a training std below this (hand-size units) are treated as constant:
+# training drops them, and inference pins them to the training mean (see preprocess).
+MIN_STD = 1e-2
 
 
 # -- loading recordings ---------------------------------------------------------
@@ -174,11 +177,17 @@ class LiveSignModel:
         self.mask = np.asarray(meta.mask, dtype=np.int64)
         self.mean = np.asarray(meta.mean, np.float32)
         self.std = np.asarray(meta.std, np.float32)
+        # Near-constant in training (rigid Studio skeleton) but slightly different live:
+        # normalised, a tiny live offset becomes a huge value and saturates the model.
+        # They carry no information, so pin them to the training mean. Models trained
+        # after this fix have none; this protects older ones.
+        self.pinned = np.flatnonzero(self.std < MIN_STD)
         self.w = {k: v.astype(np.float32) for k, v in weights.items()}
 
     def preprocess(self, x: np.ndarray) -> np.ndarray:
         x = np.asarray(x, np.float32)[:, :, self.mask]
         x = (x - self.mean) / self.std
+        x[:, :, self.pinned] = 0.0
         return np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)   # missing → training mean
 
     def logits(self, z: np.ndarray) -> np.ndarray:
