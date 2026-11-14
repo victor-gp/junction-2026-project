@@ -1,0 +1,164 @@
+{
+  "rows": [
+    {
+      "model": "dtw-1nn  angles@15fps",
+      "loro_mean": 0.4995783926218709,
+      "loro_per_round": [
+        0.591,
+        0.348,
+        0.56
+      ],
+      "kfold_mean": 0.9485714285714286,
+      "kfold_std": 0.011428571428571439,
+      "seconds": 4.2
+    },
+    {
+      "model": "dtw-3nn  angles@15fps",
+      "loro_mean": 0.45594202898550723,
+      "loro_per_round": [
+        0.5,
+        0.348,
+        0.52
+      ],
+      "kfold_mean": 0.9342857142857142,
+      "kfold_std": 0.01937808566607219,
+      "seconds": 4.2
+    },
+    {
+      "model": "dtw-1nn  angles+trim@15fps",
+      "loro_mean": 0.4243214756258234,
+      "loro_per_round": [
+        0.318,
+        0.435,
+        0.52
+      ],
+      "kfold_mean": 0.9485714285714286,
+      "kfold_std": 0.011428571428571439,
+      "seconds": 2.6
+    },
+    {
+      "model": "dtw-3nn  angles+trim@15fps",
+      "loro_mean": 0.5364426877470355,
+      "loro_per_round": [
+        0.455,
+        0.435,
+        0.72
+      ],
+      "kfold_mean": 0.9457142857142857,
+      "kfold_std": 0.010690449676496985,
+      "seconds": 2.6
+    },
+    {
+      "model": "dtw-1nn  angles+vel@15fps",
+      "loro_mean": 0.4447694334650856,
+      "loro_per_round": [
+        0.409,
+        0.565,
+        0.36
+      ],
+      "kfold_mean": 0.9657142857142856,
+      "kfold_std": 0.014568627181693687,
+      "seconds": 6.6
+    },
+    {
+      "model": "dtw-3nn  angles+vel@15fps",
+      "loro_mean": 0.4441106719367589,
+      "loro_per_round": [
+        0.364,
+        0.609,
+        0.36
+      ],
+      "kfold_mean": 0.9342857142857144,
+      "kfold_std": 0.03681171064778608,
+      "seconds": 6.6
+    },
+    {
+      "model": "dtw-1nn  angles+handpos@15fps",
+      "loro_mean": 0.5387615283267456,
+      "loro_per_round": [
+        0.455,
+        0.522,
+        0.64
+      ],
+      "kfold_mean": 0.9571428571428571,
+      "kfold_std": 0.009035079029052515,
+      "seconds": 3.4
+    },
+    {
+      "model": "dtw-3nn  angles+handpos@15fps",
+      "loro_mean": 0.5950724637681158,
+      "loro_per_round": [
+        0.5,
+        0.565,
+        0.72
+      ],
+      "kfold_mean": 0.962857142857143,
+      "kfold_std": 0.014568627181693687,
+      "seconds": 3.4
+    },
+    {
+      "model": "dtw-1nn  angles+handpos+vel@15fps",
+      "loro_mean": 0.46057971014492755,
+      "loro_per_round": [
+        0.5,
+        0.522,
+        0.36
+      ],
+      "kfold_mean": 0.9828571428571429,
+      "kfold_std": 0.005714285714285738,
+      "seconds": 7.2
+    },
+    {
+      "model": "dtw-3nn  angles+handpos+vel@15fps",
+      "loro_mean": 0.45810276679841894,
+      "loro_per_round": [
+        0.409,
+        0.565,
+        0.4
+      ],
+      "kfold_mean": 0.96,
+      "kfold_std": 0.022857142857142874,
+      "seconds": 7.2
+    },
+    {
+      "model": "dtw-1nn  angles+handpos+trim@15fps",
+      "loro_mean": 0.579262187088274,
+      "loro_per_round": [
+        0.409,
+        0.609,
+        0.72
+      ],
+      "kfold_mean": 0.9714285714285715,
+      "kfold_std": 0.009035079029052515,
+      "seconds": 3.1
+    },
+    {
+      "model": "dtw-3nn  angles+handpos+trim@15fps",
+      "loro_mean": 0.5925955204216075,
+      "loro_per_round": [
+        0.409,
+        0.609,
+        0.76
+      ],
+      "kfold_mean": 0.9714285714285713,
+      "kfold_std": 1.1102230246251565e-16,
+      "seconds": 3.1
+    }
+  ],
+  "best": "dtw-3nn  angles+handpos@15fps",
+  "reject": {
+    "threshold": 8.624498331954353,
+    "false_reject_rate_signs": 0.07142857142857142,
+    "false_accept_rate": {
+      "splice": 0.9,
+      "leadin": 1.0
+    }
+  },
+  "n_clips": 70,
+  "classes": [
+    "Hello",
+    "No",
+    "Okay",
+    "Thank you"
+  ]
+}
