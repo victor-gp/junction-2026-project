@@ -1,0 +1,109 @@
+{
+ "k": 5,
+ "window_acc": 0.9622641509433962,
+ "clip_acc": 0.9540229885057471,
+ "classes": [
+  "Hello",
+  "Idle",
+  "No",
+  "Okay",
+  "Thank you"
+ ],
+ "clip_confusion": [
+  [
+   14,
+   0,
+   1,
+   0,
+   1
+  ],
+  [
+   0,
+   17,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   22,
+   0,
+   1
+  ],
+  [
+   0,
+   0,
+   0,
+   15,
+   0
+  ],
+  [
+   0,
+   0,
+   0,
+   1,
+   15
+  ]
+ ],
+ "window_confusion": [
+  [
+   99,
+   2,
+   6,
+   0,
+   7
+  ],
+  [
+   0,
+   164,
+   0,
+   0,
+   0
+  ],
+  [
+   0,
+   0,
+   94,
+   0,
+   2
+  ],
+  [
+   0,
+   0,
+   0,
+   106,
+   2
+  ],
+  [
+   0,
+   0,
+   0,
+   1,
+   47
+  ]
+ ],
+ "train_config": {
+  "epochs": 60,
+  "batch_size": 32,
+  "lr": 0.002,
+  "weight_decay": 0.01,
+  "label_smoothing": 0.1,
+  "width": 64,
+  "dropout": 0.3,
+  "seed": 0,
+  "noise": 0.05,
+  "scale": 0.1,
+  "offset": 0.3,
+  "warp": 0.15,
+  "shift": 8,
+  "hand_freeze": 0.1
+ },
+ "clips_per_class": {
+  "Hello": 16,
+  "Idle": 17,
+  "No": 23,
+  "Okay": 15,
+  "Thank you": 16
+ }
+}
