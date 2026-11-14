@@ -1,0 +1,11 @@
+{
+  "cfg": {
+    "angles": true,
+    "handpos": true,
+    "vel": false,
+    "trim": false,
+    "target_fps": 15
+  },
+  "k": 3,
+  "reject_threshold": 8.624498331954353
+}
