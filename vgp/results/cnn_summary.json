@@ -1,0 +1,88 @@
+{
+  "model": "cnn angles+handpos@30fps",
+  "features": {
+    "angles": true,
+    "handpos": true,
+    "vel": false,
+    "trim": false,
+    "center": "none",
+    "target_fps": 30
+  },
+  "train": {
+    "seq_len": 64,
+    "epochs": 200,
+    "batch_size": 16,
+    "lr": 0.001,
+    "weight_decay": 0.01,
+    "label_smoothing": 0.1,
+    "width": 64,
+    "dropout": 0.3,
+    "seed": 0,
+    "aug": true,
+    "crop_min": 0.8,
+    "warp": 0.2,
+    "noise": 0.05,
+    "scale": 0.1,
+    "offset": 0.3,
+    "hand_dropout": 0.1
+  },
+  "seeds": [
+    0,
+    1,
+    2
+  ],
+  "loro": {
+    "mean": 0.5335177865612648,
+    "per_round": [
+      0.439,
+      0.348,
+      0.813
+    ],
+    "seed_std": 0.036113349442242815
+  },
+  "kfold": {
+    "mean": 0.9714285714285715,
+    "std": 0.01166423687039609
+  },
+  "reject": {
+    "threshold": 0.4148057535290718,
+    "false_accept_rate": {
+      "splice": 0.8,
+      "leadin": 0.9666666666666667
+    }
+  },
+  "classes": [
+    "Hello",
+    "No",
+    "Okay",
+    "Thank you"
+  ],
+  "confusion_loro": [
+    [
+      2,
+      5,
+      7,
+      2
+    ],
+    [
+      0,
+      20,
+      0,
+      3
+    ],
+    [
+      0,
+      4,
+      11,
+      0
+    ],
+    [
+      0,
+      5,
+      6,
+      5
+    ]
+  ],
+  "device": "cpu",
+  "seconds": 603.1
+}
