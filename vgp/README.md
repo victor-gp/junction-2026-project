@@ -2,6 +2,82 @@
 
 Victor's prototype. Template matching with Dynamic Time Warping + k-nearest neighbours on the Rokoko glove CSVs in `../data/`.
 
+## Live demo (gloves → words on screen)
+
+A 1D-CNN on 3 s windows of the 114 live features from `../data-capture/features.py`, the same features for Studio CSVs and the live SDK stream. It runs every 0.25 s on the newest window, and a word appears after 4 agreeing windows. Classes = the sub-folders of `../data/`, `Idle` included.
+
+- `models/live_cnn.npz`: the trained model. **Inference needs only numpy and pandas** (no torch).
+- `scripts/live.py`: live runner and offline replay. A glove that drops out is frozen at its last pose, so recognition keeps going. Output is FinSL gloss + English, e.g. `EI · KIITOS → "No, thank you."`.
+- `scripts/train_live.py`: training (torch; Modal or local CPU).
+- `live_model.py`: the same model for oplew's runner: `python ../data-capture/main.py live --model live_model:load`.
+
+Current model: grouped 5-fold CV (split by clip; signers seen in training) **95% clip / 96% window accuracy** over Hello, Idle, No, Okay, Thank you (`results/live_cv.json`). Expect much less for a signer who isn't in the training data. **Record the demo signer.**
+
+### Demo machine setup (Windows)
+
+The live stream needs the Rokoko Device SDK, which `data-capture/rokoko_stream.py` expects on Windows.
+
+1. **Python 3.10+** from <https://www.python.org/downloads/windows/>. Tick "Add python.exe to PATH" in the installer. Check in a new PowerShell: `py --version`.
+2. **Get the code:** `git clone <repo url>`, then `cd junction-2026-project` and `git switch vgp/live-model` (or whichever branch Victor pushed).
+3. **Packages** (inference only, no torch):
+
+   ```powershell
+   py -m pip install numpy pandas
+   ```
+
+4. **Rokoko Device SDK:** `rkk-hand-solver.exe` and `rokoko-sdk.exe` must be in `%LOCALAPPDATA%\Rokoko Device SDK\bin`. Check with:
+
+   ```powershell
+   dir "$env:LOCALAPPDATA\Rokoko Device SDK\bin"
+   ```
+
+   The SDK licence is tied to a Rokoko team; ask the Rokoko mentors. If the SDK lives elsewhere, change `SDK_BIN` in `data-capture/config.py`.
+5. **Gloves:** connect both Smartgloves II. Close Rokoko Studio first. (Unverified: Studio may hold the gloves and keep the SDK driver from seeing them.)
+6. **Run** from `vgp\`:
+
+   ```powershell
+   cd vgp
+   py scripts\live.py --trace     # first: prints top class per window; check both gloves stream
+   py scripts\live.py             # demo: one line per recognised word
+   ```
+
+   The script starts the hand solver itself. It prints `(gloves connected: ...)` when fewer than two hands are seen. Stop with Ctrl+C.
+
+#### Troubleshooting
+
+- `hand solver not reachable`: the SDK isn't at the path above, the licence isn't active, or another program holds the port (12277).
+- `model classes [...] != data/ folders [...]`: `data/` on this machine has different class folders than the model was trained on (e.g. new `Help`/`World` folders). Pull the retrained model, or pass `--no-class-check` to run with the model's own classes (`scripts/live.py` only).
+- Words fire too often or too rarely: try `--confidence 0.8` / `--votes 6` (fewer false words, more lag), or `--confidence 0.6` / `--votes 3`.
+
+### Recording more data
+
+- **Rokoko Studio CSV export** into `data/<Label>/Clip_N.csv`: works as is.
+- **Through the live path** (demo machine, no Studio): `py ..\data-capture\main.py record --seconds 6 --out "..\data\Help\rec_01.csv"`. The loader detects this format (seconds, SDK quaternions, not mirrored), and it gives the same features as a Studio export of the same motion.
+- **Continuous test takes** (whole demo script with pauses): record them **outside `data/`**, or they become a class. E.g. `takes\demo_1.csv`.
+
+### Retraining (e.g. after adding `Help` and `World`)
+
+New folders in `data/` become classes automatically. From the repo root:
+
+```bash
+modal run modal-gpu/run.py --workdir vgp --cmd "python scripts/train_live.py --eval"   # ~2 min on a T4
+# or locally on CPU, from vgp/:  uv run --extra cnn python scripts/train_live.py --eval
+```
+
+This writes `vgp/models/live_cnn.npz` and `vgp/results/live_cv.json`. Commit both, then pull on the demo machine.
+
+### Tuning on recorded takes (no gloves needed)
+
+```bash
+uv run python scripts/live.py --replay ../takes/demo_1.csv            # words with timestamps
+uv run python scripts/live.py --replay ../takes/demo_1.csv --trace    # + top 2 classes per window
+uv run python scripts/live.py --replay ../takes/*.csv --confidence 0.8 --votes 5
+```
+
+Replay slides the same window over the file with the same decoder as live. Defaults come from `data-capture/config.py` (`CONFIDENCE` 0.7, `VOTES` 4, `HOP_S` 0.25, `WINDOW_S` 3.0). Gloss and phrase tables (`GLOSS`, `PHRASES`) are in `signrec/live.py`.
+
+---
+
 ```bash
 cd vgp
 uv sync                                   # numpy, pandas, scikit-learn, numba, matplotlib
