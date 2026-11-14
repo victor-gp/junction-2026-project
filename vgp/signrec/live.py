@@ -232,6 +232,48 @@ class LiveSignModel:
         return m
 
 
+# -- session alignment ----------------------------------------------------------------------
+
+class Adapter:
+    """Test-time alignment to the training distribution. Keeps the last `seconds` of
+    feature frames and maps each feature's running mean/std onto the training mean/std
+    before the model sees it. A new session (other signer, other day, live solver
+    instead of Studio) shifts every finger feature a bit; this undoes most of that.
+
+    Measured: a model trained on recording session 1 got 11% of session-2 clips right,
+    22% with strong augmentation, 51% with that plus this alignment (also when Idle
+    dominates the statistics, as it does live). The std ratio is clipped to [1/MAX_RATIO,
+    MAX_RATIO] so a feature that barely moves in a quiet stream isn't blown up."""
+
+    MAX_RATIO = 2.0
+
+    def __init__(self, model: "LiveSignModel", seconds: float = 60.0, warmup_s: float = 10.0):
+        self.model = model
+        self.maxlen = int(seconds * config.FEATURE_RATE_HZ)
+        self.warmup = int(warmup_s * config.FEATURE_RATE_HZ)
+        self.hist = np.zeros((0, N_RAW), np.float32)
+
+    def push(self, rows: np.ndarray) -> None:
+        """Add new feature frames (frames, 114); NaN rows (no glove yet) are skipped."""
+        rows = rows[~np.isnan(rows).any(axis=1)]
+        self.hist = np.concatenate([self.hist, rows])[-self.maxlen:]
+
+    @property
+    def ready(self) -> bool:
+        return len(self.hist) >= self.warmup
+
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        """Align a window (frames, 114) or batch (B, frames, 114); identity until warm."""
+        if not self.ready:
+            return x
+        m = self.model.mask
+        h = self.hist[:, m].astype(np.float64)
+        ratio = np.clip(self.model.std / np.maximum(h.std(0), 1e-6), 1 / self.MAX_RATIO, self.MAX_RATIO)
+        out = np.array(x, np.float32, copy=True)
+        out[..., m] = (out[..., m] - h.mean(0)) * ratio + self.model.mean
+        return out
+
+
 # -- decoding (shared by live runner and offline replay) -----------------------------------
 
 class VoteDecoder:

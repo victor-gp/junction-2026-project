@@ -11,7 +11,13 @@ A 1D-CNN on 3 s windows of the 114 live features from `../data-capture/features.
 - `scripts/train_live.py`: training (torch; Modal or local CPU).
 - `live_model.py`: the same model for oplew's runner: `python ../data-capture/main.py live --model live_model:load`.
 
-Current model: 7 classes (Hello, Help, Idle, No, Okay, Thank you, World), 60 of the 114 features, trained on 146 clips from two recording sessions. 36 more clips (every 5th per class, `results/live_holdout.json`) were held out: on those, **97% clip / 99.5% window accuracy**, and the live decoder emits the right word for 75% of clips with no wrong words. The misses are clips under ~3.5 s, too short for 4 votes. Grouped 5-fold CV on the training clips: 94% clip / 92% window (`results/live_cv.json`). A model trained on the first session alone got ~20% on the second, so expect much less for a signer or session that isn't in the training data. **Record the demo signer.**
+Current model: 7 classes (Hello, Help, Idle, No, Okay, Thank you, World), 60 of the 114 features, trained on 146 Studio clips from two recording sessions with strong augmentation (per-feature offset ±2 std, gain ±50%, 30% feature dropout). On 36 held-out clips (`results/live_holdout.json`): **89% clip / 94% window**. Grouped CV: 80% clip. Strong augmentation costs some same-session accuracy but helps on a new session, which is what live input is. With session 1 only for training and session 2 for testing (`results/session2_clips.json`): 11% → 22% from augmentation, **51% with `--adapt`** (below). `models/live_cnn_prev.npz` is the previous model (97% same-session, 11%/36% cross-session).
+
+**First live test (2 min, Studio-trained model): no words.** The live solver's finger features are about twice as far from the training data as Studio clips are (left index and right thumb up to 6 std off). Two mitigations are in place, and one real fix:
+
+- `--adapt`: aligns each feature's running mean/std (last 60 s) with the training data (`signrec.live.Adapter`). Starts after 10 s, so rest your hands briefly at the start.
+- the strong augmentation above.
+- **the real fix: record training clips through the live path** with `scripts/record_prompted.py` (below), then retrain. **Record the demo signer.**
 
 ### Demo machine setup (Windows)
 
@@ -38,7 +44,9 @@ The live stream needs the Rokoko Device SDK, which `data-capture/rokoko_stream.p
    ```powershell
    cd vgp
    py scripts\live.py --trace     # first: prints top class per window; check both gloves stream
-   py scripts\live.py             # demo: one line per recognised word
+   py scripts\live.py --adapt     # demo: one line per recognised word
+   py scripts\live.py --adapt --log   # also log predictions + raw stream to ..\takes\live_logs\
+   py scripts\live.py --adapt --model models\live_cnn_prev.npz   # previous model, for comparison
    ```
 
    The script starts the hand solver itself. It prints `(gloves connected: ...)` when fewer than two hands are seen. Stop with Ctrl+C.
@@ -50,6 +58,8 @@ The live stream needs the Rokoko Device SDK, which `data-capture/rokoko_stream.p
 - Words fire too often or too rarely: try `--confidence 0.8` / `--votes 6` (fewer false words, more lag), or `--confidence 0.6` / `--votes 3`.
 
 ### Recording more data
+
+- **Prompted, through the live path (recommended):** `py scriptsecord_prompted.py --reps 10` shows each sign with a countdown and saves 4 s takes to `data/<Label>/live_<session>_<n>.csv`, in random order, Idle included. `--dry-run` shows the plan. Then retrain.
 
 - **Rokoko Studio CSV export** into `data/<Label>/Clip_N.csv`: works as is.
 - **Through the live path** (demo machine, no Studio): `py ..\data-capture\main.py record --seconds 6 --out "..\data\Help\rec_01.csv"`. The loader detects this format (seconds, SDK quaternions, not mirrored), and it gives the same features as a Studio export of the same motion.

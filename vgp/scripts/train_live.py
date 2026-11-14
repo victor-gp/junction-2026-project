@@ -50,11 +50,12 @@ class TC:
     seed: int = 0
     # augmentation (standardised units)
     noise: float = 0.05
-    scale: float = 0.1
-    offset: float = 0.3
+    scale: float = 0.5         # per-feature gain +-50%
+    offset: float = 2.0        # per-feature offset +-2 std: new sessions / the live solver shift features
     warp: float = 0.15          # global speed change +- 15%
     shift: int = 8              # random time shift (frames, edge padded)
     hand_freeze: float = 0.1    # prob. of freezing one hand (glove dropout)
+    feat_drop: float = 0.3      # prob. per feature and window of replacing it by the training mean
 
 
 def active_mask(X: np.ndarray, rel: float = 1e-3, min_std: float = MIN_STD) -> np.ndarray:
@@ -83,6 +84,8 @@ def augment_batch(x: np.ndarray, tc: TC, rng, hand_groups) -> np.ndarray:
         if rng.random() < tc.hand_freeze:
             g = hand_groups[rng.integers(2)]
             xb[:, g] = xb[rng.integers(T), g]
+        if tc.feat_drop:
+            xb[:, rng.random(D) < tc.feat_drop] = 0.0   # standardised: 0 = training mean
         out[b] = xb
     return out.astype(np.float32)
 
@@ -207,11 +210,24 @@ def main():
     ap.add_argument("--holdout", type=int, default=0, metavar="N",
                     help="keep every Nth clip per class (by clip number) out of CV and the final "
                          "fit, for scripts/validate_live.py; 0 = train on everything")
+    ap.add_argument("--holdout-list", metavar="JSON",
+                    help='hold out the clips listed in a JSON file {"clips": ["<Label>/<file>", ...]}, '
+                         "e.g. a whole recording session for a cross-session test")
+    ap.add_argument("--aug-offset", type=float, default=TC.offset, help=f"default {TC.offset}")
+    ap.add_argument("--aug-scale", type=float, default=TC.scale, help=f"default {TC.scale}")
+    ap.add_argument("--feat-drop", type=float, default=TC.feat_drop, help=f"default {TC.feat_drop}")
     a = ap.parse_args()
-    tc = TC(epochs=2 if a.smoke else a.epochs)
+    tc = TC(epochs=2 if a.smoke else a.epochs, offset=a.aug_offset, scale=a.aug_scale,
+            feat_drop=a.feat_drop)
+    print(f"train config {asdict(tc)}", flush=True)
 
     t0 = time.time()
     X, y, groups, classes, paths = dataset_windows()
+    if a.holdout_list:
+        listed = set(json.loads(Path(a.holdout_list).read_text())["clips"])
+        keep = ~np.isin(groups, [g for g, p in enumerate(paths) if clip_id(p) in listed])
+        X, y, groups = X[keep], y[keep], groups[keep]
+        print(f"held out {len(listed)} clips listed in {a.holdout_list}")
     if a.holdout:
         held = holdout_clips(paths, a.holdout)
         keep = ~np.isin(groups, sorted(held))

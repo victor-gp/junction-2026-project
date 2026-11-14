@@ -42,6 +42,9 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", default=str(DEFAULT_MODEL))
     ap.add_argument("--clips", nargs="+", help="clip CSVs (default: results/live_holdout.json)")
+    ap.add_argument("--list", default=str(HOLDOUT), metavar="JSON",
+                    help='clip list {"clips": ["<Label>/<file>", ...]} (default: results/live_holdout.json)')
+    ap.add_argument("--quiet", action="store_true", help="summary only")
     ap.add_argument("--confidence", type=float, default=None)
     ap.add_argument("--votes", type=int, default=None)
     a = ap.parse_args()
@@ -50,9 +53,9 @@ def main():
     if a.clips:
         clips = [Path(c) for c in a.clips]
     else:
-        clips = [Path(config.DATA_DIR) / c for c in json.loads(HOLDOUT.read_text())["clips"]]
-    clips = [c for c in clips if c.parent.name in model.classes]
+        clips = [Path(config.DATA_DIR) / c for c in json.loads(Path(a.list).read_text())["clips"]]
     trained = model.meta.trained_on
+    clips = [c for c in clips if trained.get(c.parent.name, 0) > 0]   # skip classes it never saw
     print(f"model {a.model}: {model.classes}, trained on {sum(trained.values())} clips {trained}")
     print(f"validating on {len(clips)} held-out clips\n")
 
@@ -72,7 +75,8 @@ def main():
         words = live_words(model, feats, kw)
         ok = words == ([] if truth == config.IDLE_LABEL else [truth])
         live_ok += ok
-        print(f"  {truth + '/' + c.name:<{w + 14}} clip {'✓' if pred == t else '✗'} {model.classes[pred]:<{w}}"
+        if not a.quiet:
+            print(f"  {truth + '/' + c.name:<{w + 14}} clip {'✓' if pred == t else '✗'} {model.classes[pred]:<{w}}"
               f"  windows {np.mean(p.argmax(1) == t):4.0%}   live {'ok ' if ok else 'BAD'} {words or '-'}")
 
     print(f"\nclip acc {np.trace(conf)}/{conf.sum()} = {np.trace(conf) / conf.sum():.1%}   "
