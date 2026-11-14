@@ -9,3 +9,15 @@ dependencies = [
     "pandas>=3.1.1",
     "scikit-learn>=1.9.1",
 ]
+
+[project.optional-dependencies]
+cnn = ["torch>=2.5"]
+
+# CPU-only torch locally (small download); Modal installs its own CUDA build.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
