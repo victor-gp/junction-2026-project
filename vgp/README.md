@@ -59,7 +59,7 @@ The live stream needs the Rokoko Device SDK, which `data-capture/rokoko_stream.p
 
 ### Recording more data
 
-- **Prompted, through the live path (recommended):** `py scriptsecord_prompted.py --reps 10` shows each sign with a countdown and saves 4 s takes to `data/<Label>/live_<session>_<n>.csv`, in random order, Idle included. `--dry-run` shows the plan. Then retrain.
+- **Prompted, through the live path (recommended):** `py scripts\record_prompted.py --reps 10` shows each sign with a countdown and saves 4 s takes to `data/<Label>/live_<session>_<n>.csv`, in random order, Idle included. `--dry-run` shows the plan. Then retrain.
 
 - **Rokoko Studio CSV export** into `data/<Label>/Clip_N.csv`: works as is.
 - **Through the live path** (demo machine, no Studio): `py ..\data-capture\main.py record --seconds 6 --out "..\data\Help\rec_01.csv"`. The loader detects this format (seconds, SDK quaternions, not mirrored), and it gives the same features as a Studio export of the same motion.
