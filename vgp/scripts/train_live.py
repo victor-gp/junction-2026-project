@@ -213,6 +213,8 @@ def main():
     ap.add_argument("--holdout-list", metavar="JSON",
                     help='hold out the clips listed in a JSON file {"clips": ["<Label>/<file>", ...]}, '
                          "e.g. a whole recording session for a cross-session test")
+    ap.add_argument("--include-list", metavar="JSON",
+                    help='train only on the clips listed in a JSON file {"clips": [...]}')
     ap.add_argument("--aug-offset", type=float, default=TC.offset, help=f"default {TC.offset}")
     ap.add_argument("--aug-scale", type=float, default=TC.scale, help=f"default {TC.scale}")
     ap.add_argument("--feat-drop", type=float, default=TC.feat_drop, help=f"default {TC.feat_drop}")
@@ -223,6 +225,11 @@ def main():
 
     t0 = time.time()
     X, y, groups, classes, paths = dataset_windows()
+    if a.include_list:
+        listed = set(json.loads(Path(a.include_list).read_text())["clips"])
+        keep = np.isin(groups, [g for g, p in enumerate(paths) if clip_id(p) in listed])
+        X, y, groups = X[keep], y[keep], groups[keep]
+        print(f"training only on the {len(listed)} clips listed in {a.include_list}")
     if a.holdout_list:
         listed = set(json.loads(Path(a.holdout_list).read_text())["clips"])
         keep = ~np.isin(groups, [g for g, p in enumerate(paths) if clip_id(p) in listed])
