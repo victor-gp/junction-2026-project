@@ -30,6 +30,9 @@ py scripts\make_audio.py --play      # check the speakers
 py scripts\clip_demo.py --watch "<Studio export folder>" --gui
 ```
 
+- Run it on the Windows machine that has Studio. Python 3.10+ from python.org (keep "tcl/tk" ticked in the installer, which is the default). No torch, no extra audio packages.
+- Don't end the `--watch` path with a backslash inside quotes (`"C:\x\"`): PowerShell then passes the quote as part of the path. Use `"C:\x"` or forward slashes.
+- If Studio still holds a just-exported file locked, the read is retried for a few seconds before it's reported.
 - `--gui` opens a big-text window (tkinter, included with python.org Python); without it, one line per clip in the terminal. Esc closes the window.
 - Only CSVs that appear after start-up count; `--existing` also classifies the ones already there. Sub-folders are watched too. A re-export over the same file name is classified again.
 - A file is read once it has stopped changing for 1 s (`--settle`), so Studio can finish writing it.

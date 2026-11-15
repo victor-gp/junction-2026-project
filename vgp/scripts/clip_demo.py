@@ -140,6 +140,16 @@ class ExportWatcher:
                 ready.append(p)
         return sorted(ready, key=lambda q: self.done[q][1])
 
+    def retry(self, p: Path, max_tries: int = 5) -> bool:
+        """Read failed (on Windows, Studio may still hold the file locked): look at it
+        again on a later poll. False once it has failed max_tries times."""
+        self.failures = getattr(self, "failures", {})
+        self.failures[p] = self.failures.get(p, 0) + 1
+        if self.failures[p] >= max_tries:
+            return False
+        self.done.pop(p, None)
+        return True
+
 
 def english(label: str) -> str:
     return GLOSS.get(label, (None, label))[1]
@@ -158,6 +168,8 @@ def watch_loop(a, model, speaker, events: queue.Queue | None, stop: threading.Ev
             try:
                 probs = clip_probs(model, p)
             except Exception as e:
+                if w.retry(p):
+                    continue
                 print(f"[{time.strftime('%H:%M:%S')}] {p.name}: could not read ({e})", flush=True)
                 if events:
                     events.put(("error", p.name, str(e)))
@@ -185,6 +197,12 @@ def run_gui(a, model, speaker):
     stop = threading.Event()
     threading.Thread(target=watch_loop, args=(a, model, speaker, events, stop), daemon=True).start()
 
+    if sys.platform == "win32":     # crisp text on high-DPI laptop screens
+        try:
+            import ctypes
+            ctypes.windll.shcore.SetProcessDpiAwareness(1)
+        except Exception:
+            pass
     root = tk.Tk()
     root.title("Glove sign recognition")
     root.configure(bg="#111")
