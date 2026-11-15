@@ -2,6 +2,46 @@
 
 Victor's prototype. Template matching with Dynamic Time Warping + k-nearest neighbours on the Rokoko glove CSVs in `../data/`.
 
+## Clip demo (Studio export → spoken word): the demo path
+
+Sign one word in Rokoko Studio and export the take as CSV. `scripts/clip_demo.py` sees the new file, classifies the whole clip, prints the English word with its FinSL gloss and plays the word. It stays in the Studio data domain end to end, so there's no SDK-vs-Studio mismatch. Inference needs only numpy and pandas.
+
+Model: `models/live_cnn.npz`, 7 classes, trained on all 182 Studio clips. A clip is cut into 3 s windows, the window probabilities are averaged, and the top class wins. If the top class is Idle, or its probability is below `--threshold` (default 0.5), it shows "not sure" and says nothing.
+
+Held-out check (`results/live_cnn_holdout.npz`: same recipe, 36 clips kept out; the same split as `results/live_holdout.json`):
+
+| threshold | right | wrong word | silent | Idle clips silent |
+|---|---|---|---|---|
+| 0.4 | 29/32 | 2 | 1 | 3/4 |
+| **0.5** | **28/32** | **0** | 4 | **4/4** |
+| 0.6 | 24/32 | 0 | 8 | 4/4 |
+
+Grouped 5-fold CV on the 146 training clips: 79% clip accuracy. All of these clips come from the recorded sessions. **A new signer or session scores far lower** (11–51% before), so record about 5 clips per sign plus Idle from the demo signer, add them to `../data/<Label>/`, and retrain (below, about 3 min on Modal).
+
+### Running it (from `vgp\`, Windows)
+
+```powershell
+py -m pip install numpy pandas
+# once, with network: generate the voice clips into vgp\audio\ (stdlib only)
+$env:ELEVENLABS_API_KEY = "..."      # never commit the key
+py scripts\make_audio.py             # --voice <id> to pick another voice, --force to redo
+py scripts\make_audio.py --play      # check the speakers
+# demo
+py scripts\clip_demo.py --watch "<Studio export folder>" --gui
+```
+
+- `--gui` opens a big-text window (tkinter, included with python.org Python); without it, one line per clip in the terminal. Esc closes the window.
+- Only CSVs that appear after start-up count; `--existing` also classifies the ones already there. Sub-folders are watched too. A re-export over the same file name is classified again.
+- A file is read once it has stopped changing for 1 s (`--settle`), so Studio can finish writing it.
+- Voice: `audio\<Label>.wav` if it exists (ElevenLabs), else Windows' built-in speech (offline), else silent. `--no-voice` mutes it.
+- Offline check without gloves: `py scripts\clip_demo.py --files ..\data\No\Clip_44.csv ...`, or `--list results\live_holdout.json --model results\live_cnn_holdout.npz` for accuracy plus a threshold sweep.
+
+Retrain after adding calibration clips (repo root, Modal):
+
+```sh
+modal run modal-gpu/run.py --workdir vgp --outputs models --cmd "python scripts/train_live.py"
+```
+
 ## Live demo (gloves → words on screen)
 
 A 1D-CNN on 3 s windows of the 114 live features from `../data-capture/features.py`, the same features for Studio CSVs and the live SDK stream. It runs every 0.25 s on the newest window, and a word appears after 4 agreeing windows. Classes = the sub-folders of `../data/`, `Idle` included.
