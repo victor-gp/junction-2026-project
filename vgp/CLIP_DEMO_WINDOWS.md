@@ -40,19 +40,21 @@ py scripts\clip_demo.py --list results\live_holdout.json --model results\live_cn
 
 Expected: `36 labelled clips, argmax clip accuracy 89%`, and at threshold 0.5: `28 right, 0 wrong, 4/4 Idle silent`. If you see `model classes [...] != data/ folders [...]`, the `..\data\` folders on this machine differ from the seven above; pull the branch again.
 
-## 4. Voice: Windows' built-in speech (no setup)
+## 4. Voice clips (once, needs network)
 
-The demo speaks with Windows' built-in offline speech (System.Speech, through Windows PowerShell). It needs no key, no network and no install. Check the speakers:
+Ask the human for the ElevenLabs API key. Put it only in the environment: never in a file, a commit or chat.
 
 ```powershell
-py scripts\make_audio.py --play
+$env:ELEVENLABS_API_KEY = "<key>"
+py scripts\make_audio.py              # writes audio\Hello.wav ... audio\World.wav
+py scripts\make_audio.py --play       # plays every word; check the speakers
 ```
 
-Expected: six words through the speakers, each line tagged `(system tts)`. Words: Hello, Help, No, Okay, Thank you, World.
+Expected: six lines `<Label> -> ...\audio\<Label>.wav`, then six words through the speakers, each tagged `(elevenlabs)`.
 
-- Each word starts PowerShell, so the voice comes about 1 s after the word appears on screen. That's expected.
-- No sound: check the Windows output device and volume, and that `powershell` (Windows PowerShell, not only `pwsh`) runs.
-- Optional, later: `scripts\make_audio.py` can pre-generate nicer ElevenLabs voices (3 voices, 2 women and 1 man) into `audio\<Label>.wav` given `ELEVENLABS_API_KEY`. If those files exist, the demo uses them instead. Not needed for the demo.
+- Other voice: `--voice <voice id>` (from the ElevenLabs voice library) plus `--force` to regenerate.
+- No key or no network: skip this step. The demo then uses Windows' built-in speech (`(system tts)`), which works offline.
+- `ElevenLabs HTTP 401`: wrong key. `HTTP 402`/`quota`: the account is out of credits; use the fallback.
 
 ## 5. Studio export folder
 
