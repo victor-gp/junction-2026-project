@@ -4,6 +4,8 @@ Victor's prototype. Template matching with Dynamic Time Warping + k-nearest neig
 
 ## Clip demo (Studio export → spoken word): the demo path
 
+**Running it on the Windows Studio machine? Follow [CLIP_DEMO_WINDOWS.md](CLIP_DEMO_WINDOWS.md) step by step** (written for people and coding agents).
+
 Sign one word in Rokoko Studio and export the take as CSV. `scripts/clip_demo.py` sees the new file, classifies the whole clip, prints the English word with its FinSL gloss and plays the word. It stays in the Studio data domain end to end, so there's no SDK-vs-Studio mismatch. Inference needs only numpy and pandas.
 
 Model: `models/live_cnn.npz`, 7 classes, trained on all 182 Studio clips. A clip is cut into 3 s windows, the window probabilities are averaged, and the top class wins. If the top class is Idle, or its probability is below `--threshold` (default 0.5), it shows "not sure" and says nothing.

@@ -1,5 +1,7 @@
 # Handoff: live sign recognition (branch `fix-model-for-live`)
 
+> **Superseded (2026-11-15 03:40): the demo is now the Studio clip demo. On the Windows Studio machine, follow [CLIP_DEMO_WINDOWS.md](CLIP_DEMO_WINDOWS.md).** The SDK live path below doesn't recognise signs reliably; this file is kept as history.
+
 State as of 2026-11-15. Read this first, then `vgp/README.md` ("Live demo").
 
 ## Where things stand
