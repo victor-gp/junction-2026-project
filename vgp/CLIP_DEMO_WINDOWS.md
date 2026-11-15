@@ -1,5 +1,7 @@
 # Runbook: clip demo on the Windows Studio machine
 
+> **Status 2026-11-15:** read [CLIP_DEMO_HANDOFF.md](CLIP_DEMO_HANDOFF.md) first. New Studio takes are currently saved without glove motion; the demo runs on replayed hold-out clips until that is fixed.
+
 For a person or a coding agent on the Windows machine that has Rokoko Studio. Follow the steps in order. Each step says what you should see; stop and fix it before going on.
 
 **This is the demo path.** Ignore the SDK "Live demo" instructions in `README.md` and `HANDOFF.md`. The SDK live stream doesn't recognise signs reliably (its hand data differs from the Studio training data).
@@ -69,8 +71,9 @@ py scripts\clip_demo.py --watch "C:\path\to\Studio exports" --gui
 
 - Don't end the path with `\` inside quotes (`"C:\x\"` breaks in PowerShell). Forward slashes also work.
 - Expected terminal output: the model line, `voice: elevenlabs` (or `system tts`), `watching <folder>`. A dark window shows "sign, then export".
-- Record one sign in Studio and export it. Within about 2 s the window shows the English word, the FinSL gloss and a confidence, and the word is spoken. If unsure, it shows "not sure" and stays silent.
+- Record one sign in Studio and export it. Within about 2 s the window shows the English word, the FinSL gloss and a confidence, the same appears as a popup over all windows (bottom of the screen, fades after 4 s, doesn't take focus from Studio), and the word is spoken. If unsure, it shows "not sure" and stays silent.
 - Only files that appear after start-up count; add `--existing` to also classify files already there. Sub-folders are watched. Re-exporting to the same file name classifies it again.
+- `--overlay-only` shows only the popups over Studio (main window minimised). `--popup-seconds`, `--popup-pos` (`bottom`, `top`, `center`, `top-right`, `bottom-right`) and `--no-popup` change the popup.
 - Without `--gui`: one line per clip in the terminal. `--no-voice` mutes it. Esc or closing the window quits.
 
 Quick test without gloves: start the demo, then copy a training clip into the watched folder:
