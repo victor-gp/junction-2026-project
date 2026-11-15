@@ -1,5 +1,7 @@
 # Runbook: clip demo on the Windows Studio machine
 
+> **Status 2026-11-15:** read [CLIP_DEMO_HANDOFF.md](CLIP_DEMO_HANDOFF.md) first. New Studio takes are currently saved without glove motion; the demo runs on replayed hold-out clips until that is fixed.
+
 For a person or a coding agent on the Windows machine that has Rokoko Studio. Follow the steps in order. Each step says what you should see; stop and fix it before going on.
 
 **This is the demo path.** Ignore the SDK "Live demo" instructions in `README.md` and `HANDOFF.md`. The SDK live stream doesn't recognise signs reliably (its hand data differs from the Studio training data).

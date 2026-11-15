@@ -8,6 +8,8 @@ probability below --threshold, shows "not sure" and says nothing.
 From vgp/ (numpy + pandas only; --gui needs tkinter, bundled with python.org Python):
     python scripts/clip_demo.py --watch "C:/Users/<you>/Documents/Rokoko Studio/Exports"
     python scripts/clip_demo.py --watch <dir> --gui           # big-text window for the video
+        (comes to the front on each recognised word without taking keyboard focus;
+         --fullscreen / F11 for a projector, --on-top to pin it, --no-raise to never raise)
     python scripts/clip_demo.py --files ../data/No/Clip_150.csv ...       # classify, exit
     python scripts/clip_demo.py --list results/live_holdout.json \\
         --model results/live_cnn_holdout.npz                             # accuracy + threshold sweep
@@ -180,7 +182,8 @@ def watch_loop(a, model, speaker, events: queue.Queue | None, stop: threading.Ev
             if word:
                 print(f"[{stamp}] {p.name}:  >>> {english(word).upper()}  ({finsl(word)})  "
                       f"{probs.max():.2f}   | {describe(model, probs)}  [{ms:.0f} ms]", flush=True)
-                speaker.speak(word, english(word))
+                if events is None:      # GUI mode: the window speaks when it shows the word
+                    speaker.speak(word, english(word))
             else:
                 print(f"[{stamp}] {p.name}:  (not sure)   | {describe(model, probs)}  [{ms:.0f} ms]",
                       flush=True)
@@ -190,8 +193,39 @@ def watch_loop(a, model, speaker, events: queue.Queue | None, stop: threading.Ev
         stop.wait(a.poll)
 
 
+def raise_without_focus(root, keep_on_top: bool) -> None:
+    """Put the window in front of other windows without activating it, so keyboard
+    focus stays where it is (e.g. in Rokoko Studio). Windows: SetWindowPos with
+    SWP_NOACTIVATE (TOPMOST then NOTOPMOST = to the top of the normal stack)."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+            u = ctypes.windll.user32
+            u.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
+                                       ctypes.c_int, ctypes.c_int, ctypes.c_uint]
+            hwnd = wintypes.HWND(int(root.wm_frame(), 16))
+            if u.IsIconic(hwnd):
+                u.ShowWindow(hwnd, 4)                     # SW_SHOWNOACTIVATE
+            flags = 0x0001 | 0x0002 | 0x0010 | 0x0040    # NOSIZE | NOMOVE | NOACTIVATE | SHOWWINDOW
+            u.SetWindowPos(hwnd, wintypes.HWND(-1), 0, 0, 0, 0, flags)          # HWND_TOPMOST
+            if not keep_on_top:
+                u.SetWindowPos(hwnd, wintypes.HWND(-2), 0, 0, 0, 0, flags)      # HWND_NOTOPMOST
+            return
+        except Exception:
+            pass
+    root.lift()
+    root.attributes("-topmost", True)
+    if not keep_on_top:
+        root.after(50, lambda: root.attributes("-topmost", False))
+
+
+BG, FLASH = "#000000", "#0b4d24"
+
+
 def run_gui(a, model, speaker):
     import tkinter as tk
+    import tkinter.font as tkfont
 
     events: queue.Queue = queue.Queue()
     stop = threading.Event()
@@ -205,17 +239,94 @@ def run_gui(a, model, speaker):
             pass
     root = tk.Tk()
     root.title("Glove sign recognition")
-    root.configure(bg="#111")
-    root.geometry("1000x560")
-    big = tk.Label(root, text="sign, then export", font=("Segoe UI", 96, "bold"), fg="#eee", bg="#111")
-    big.pack(expand=True, fill="both")
-    gl = tk.Label(root, text="", font=("Segoe UI", 36), fg="#8ab4f8", bg="#111")
-    gl.pack()
-    small = tk.Label(root, text=f"watching {a.watch}", font=("Consolas", 14), fg="#888", bg="#111")
-    small.pack(pady=(10, 4))
-    hist = tk.Label(root, text="", font=("Segoe UI", 18), fg="#bbb", bg="#111")
-    hist.pack(pady=(0, 16))
+    root.configure(bg=BG)
+    root.geometry("1200x700")
+    if a.fullscreen:
+        root.attributes("-fullscreen", True)
+    if a.on_top:
+        root.attributes("-topmost", True)
+
+    # Fonts sized in pixels (negative size) and rescaled with the window, see fit().
+    f_word = tkfont.Font(family="Segoe UI", size=-120, weight="bold")
+    f_conf = tkfont.Font(family="Segoe UI", size=-56, weight="bold")
+    f_gloss = tkfont.Font(family="Segoe UI", size=-40)
+    f_hist = tkfont.Font(family="Segoe UI", size=-26)
+    f_status = tkfont.Font(family="Consolas", size=-18)
+
+    word_l = tk.Label(root, text="sign, then export", font=f_word, fg="#666", bg=BG)
+    word_l.pack(expand=True, fill="both")
+    conf_row = tk.Frame(root, bg=BG)
+    conf_row.pack()
+    conf_l = tk.Label(conf_row, text="", font=f_conf, fg="#7ee2a8", bg=BG)
+    conf_l.pack(side="left", padx=(0, 24))
+    bar = tk.Canvas(conf_row, width=400, height=36, bg="#222", highlightthickness=0)
+    gloss_l = tk.Label(root, text="", font=f_gloss, fg="#8ab4f8", bg=BG)
+    gloss_l.pack(pady=(8, 0))
+    hist_l = tk.Label(root, text="", font=f_hist, fg="#aaa", bg=BG)
+    hist_l.pack(pady=(18, 4))
+    status_l = tk.Label(root, text=f"watching {a.watch}", font=f_status, fg="#777", bg=BG)
+    status_l.pack(pady=(0, 14))
+    widgets = [root, word_l, conf_row, conf_l, gloss_l, hist_l, status_l]
     said: list[str] = []
+    flash_job = [None]
+
+    def fit(_=None):
+        w, h = max(root.winfo_width(), 200), max(root.winfo_height(), 200)
+        text = word_l.cget("text") or " "
+        px = int(h * 0.30)                       # word: ~30% of the window height ...
+        f_word.configure(size=-px)
+        while px > 24 and f_word.measure(text) > w * 0.94:   # ... shrunk until it fits the width
+            px = int(px * 0.92)
+            f_word.configure(size=-px)
+        f_conf.configure(size=-max(20, int(h * 0.085)))
+        f_gloss.configure(size=-max(16, int(h * 0.055)))
+        f_hist.configure(size=-max(12, int(h * 0.036)))
+        f_status.configure(size=-max(10, int(h * 0.025)))
+        bar.configure(width=int(w * 0.35), height=max(14, int(h * 0.05)))
+
+    def draw_bar(conf: float):
+        bar.update_idletasks()
+        bw, bh = int(bar.cget("width")), int(bar.cget("height"))
+        bar.delete("all")
+        bar.create_rectangle(0, 0, int(bw * conf), bh, fill="#2ecc71", width=0)
+        tx = int(bw * a.threshold)               # tick at the speaking threshold
+        bar.create_line(tx, 0, tx, bh, fill="#ddd", width=2)
+
+    def set_bg(color: str):
+        for wdg in widgets:
+            wdg.configure(bg=color)
+
+    def flash():
+        if flash_job[0]:
+            root.after_cancel(flash_job[0])
+        set_bg(FLASH)
+        flash_job[0] = root.after(700, lambda: set_bg(BG))
+
+    def show_word(name, word, conf, desc):
+        word_l.config(text=english(word), fg="#ffffff")
+        conf_l.config(text=f"{conf:.0%}")
+        if not bar.winfo_ismapped():
+            bar.pack(side="left")
+        fit()
+        draw_bar(conf)
+        gloss_l.config(text=f"FinSL: {finsl(word)}")
+        said.append(english(word))
+        hist_l.config(text="  ·  ".join(said[-6:]))
+        status_l.config(text=f"{name}   |   {desc}", fg="#777")
+        flash()
+        if not a.no_raise:
+            raise_without_focus(root, a.on_top)
+        root.update_idletasks()                  # the word is on screen before it is heard
+        speaker.speak(word, english(word))
+
+    def show_quiet(text, fg):
+        """Idle / not confident / read error: no big word, no flash, no raise, no voice."""
+        word_l.config(text="·  ·  ·", fg="#333")
+        conf_l.config(text="")
+        bar.pack_forget()
+        gloss_l.config(text="")
+        status_l.config(text=text, fg=fg)
+        fit()
 
     def tick():
         try:
@@ -223,24 +334,19 @@ def run_gui(a, model, speaker):
                 ev = events.get_nowait()
                 if ev[0] == "word":
                     _, name, word, conf, desc = ev
-                    big.config(text=english(word), fg="#eee")
-                    gl.config(text=f"FinSL: {finsl(word)}   ·   {conf:.0%}")
-                    small.config(text=f"{name}   |   {desc}")
-                    said.append(english(word))
-                    hist.config(text="  ·  ".join(said[-8:]))
+                    show_word(name, word, conf, desc)
                 elif ev[0] == "unsure":
                     _, name, _, conf, desc = ev
-                    big.config(text="not sure", fg="#777")
-                    gl.config(text="")
-                    small.config(text=f"{name}   |   {desc}")
+                    show_quiet(f"not sure, nothing said   |   {name}   |   {desc}", "#c9a227")
                 else:
-                    big.config(text="read error", fg="#c66")
-                    small.config(text=f"{ev[1]}: {ev[2]}")
+                    show_quiet(f"could not read {ev[1]}: {ev[2]}", "#d66")
         except queue.Empty:
             pass
         root.after(100, tick)
 
+    root.bind("<Configure>", lambda e: fit() if e.widget is root else None)
     root.bind("<Escape>", lambda e: root.destroy())
+    root.bind("<F11>", lambda e: root.attributes("-fullscreen", not root.attributes("-fullscreen")))
     root.after(100, tick)
     try:
         root.mainloop()
@@ -260,6 +366,10 @@ def main():
                     help=f"min mean probability to say a word (default {DEFAULT_THRESHOLD})")
     ap.add_argument("--no-voice", action="store_true")
     ap.add_argument("--gui", action="store_true", help="big-text window (tkinter)")
+    ap.add_argument("--fullscreen", action="store_true", help="--gui: start full screen (F11 toggles)")
+    ap.add_argument("--on-top", action="store_true", help="--gui: keep the window above all others")
+    ap.add_argument("--no-raise", action="store_true",
+                    help="--gui: don't bring the window to the front on a recognised word")
     ap.add_argument("--existing", action="store_true", help="also classify CSVs already in --watch")
     ap.add_argument("--poll", type=float, default=0.5, help="seconds between folder scans")
     ap.add_argument("--settle", type=float, default=1.0,
