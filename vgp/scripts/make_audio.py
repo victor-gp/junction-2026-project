@@ -32,8 +32,8 @@ from signrec.live import GLOSS, config, realtime  # noqa: E402
 
 # Piper voices (rhasspy/piper-voices on Hugging Face): (voice, gender, words)
 PIPER_PLAN = [
-    ("en_US-hfc_female-medium", "female", ["Hello", "Thank you"]),
-    ("en_US-amy-medium", "female", ["Help", "World"]),
+    ("en_US-hfc_female-medium", "female", ["Hello", "World"]),
+    ("en_US-amy-medium", "female", ["Help", "Thank you"]),
     ("en_US-hfc_male-medium", "male", ["No", "Okay"]),   # ryan clips short words
 ]
 PIPER_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/{lang}/{locale}/{name}/{quality}/{voice}{ext}"
