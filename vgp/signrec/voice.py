@@ -28,22 +28,6 @@ DEFAULT_VOICE = "JBFqnCBsd6RMkjVDRZzb"      # example voice in the ElevenLabs AP
 DEFAULT_TTS_MODEL = "eleven_multilingual_v2"
 
 
-# Spoken Finnish for each class (Help: "Apua!", the cry for help, not the gloss AUTTAA)
-# Punctuation shapes Piper's timing: bare "Okei" came out 1.75 s long, "Okei." 0.65 s.
-FINNISH = {"Hello": "Moi!", "Help": "Apua!", "No": "Ei.", "Okay": "Okei.",
-           "Thank you": "Kiitos.", "World": "Maailma."}
-LANGS = ("en", "fi")
-
-
-def lang_dir(lang: str = "en") -> Path:
-    """audio/ for English, audio/<lang>/ otherwise."""
-    return AUDIO_DIR if lang == "en" else AUDIO_DIR / lang
-
-
-def spoken_text(label: str, english: str, lang: str = "en") -> str:
-    return FINNISH.get(label, english) if lang == "fi" else english
-
-
 def audio_path(label: str, audio_dir: Path = AUDIO_DIR) -> Path:
     return Path(audio_dir) / f"{label}.wav"
 
