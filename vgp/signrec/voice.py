@@ -31,6 +31,17 @@ def audio_path(label: str, audio_dir: Path = AUDIO_DIR) -> Path:
     return Path(audio_dir) / f"{label}.wav"
 
 
+def voice_info(voice_id: str, api_key: str, timeout: float = 15.0) -> dict:
+    """GET /v1/voices/<id>: name, labels (gender, accent, ...)."""
+    req = urllib.request.Request(f"https://api.elevenlabs.io/v1/voices/{voice_id}",
+                                 headers={"xi-api-key": api_key})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"voice {voice_id}: ElevenLabs HTTP {e.code}: {e.read()[:300]!r}") from None
+
+
 def synthesize(text: str, out: Path, api_key: str, voice_id: str = DEFAULT_VOICE,
                model_id: str = DEFAULT_TTS_MODEL, timeout: float = 30.0) -> None:
     """One ElevenLabs request -> 16-bit mono WAV at `out`."""
