@@ -1,7 +1,5 @@
 # Korvat - junction-2026-project
 
-[demo videos](https://www.youtube.com/playlist?list=PLCYQFsEnWO6I)
-
 Thousands of deaf people in Finland use Finnish Sign Language, and there are only about 600 interpreters. We built a first step toward signers being understood without booking one.
 
 Most sign-recognition research uses computer vision: a camera films the signer. That needs good light, the right angle and visible fingers, and a camera installed wherever the conversation happens, filming everyone in view. We use Rokoko Smartgloves II instead. They measure every finger joint directly, work anywhere, and belong to the signer: no venue has to install anything, and they record only hand movement, not faces or rooms.
@@ -13,3 +11,6 @@ It's a proof of concept. Next: a larger vocabulary, more signers, live recogniti
 Challenge: Rokoko.
 
 Technologies: Rokoko Smartgloves II, Rokoko Studio, Rokoko Device SDK, Python, NumPy, PyTorch, Modal (GPU training), ElevenLabs (speech).
+
+
+## **PLEASE WATCH OUR DEMO VIDEOS** [HERE](https://www.youtube.com/playlist?list=PLCYQFsEnWO6I)
