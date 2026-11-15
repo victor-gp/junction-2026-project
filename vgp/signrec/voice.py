@@ -1,8 +1,9 @@
-"""Spoken output for recognised signs: cached ElevenLabs clips, offline fallback.
+"""Spoken output for recognised signs: pre-generated WAV clips, offline fallback.
 
-Clips are generated once (scripts/make_audio.py) into vgp/audio/<Label>.wav, so the
-demo never waits on the network. ElevenLabs returns raw PCM (pcm_22050), wrapped here
-as WAV so Windows can play it with the stdlib `winsound`, no extra packages.
+Clips are generated once (scripts/make_audio.py: Piper by default, or ElevenLabs) into
+vgp/audio/<Label>.wav and committed, so the demo needs no TTS engine or network.
+WAV plays on Windows with the stdlib `winsound`, no extra packages. (ElevenLabs
+returns raw PCM, pcm_22050, which synthesize() wraps as WAV.)
 
 Playback order per word: cached WAV -> system TTS (Windows SAPI via PowerShell,
 `spd-say`/`espeak` on Linux) -> silent. Playback runs in a thread; it never blocks.
@@ -103,7 +104,7 @@ class Speaker:
         self._lock = threading.Lock()
 
     def source(self, label: str) -> str:
-        return "elevenlabs" if audio_path(label, self.audio_dir).exists() else "system tts"
+        return "cached wav" if audio_path(label, self.audio_dir).exists() else "system tts"
 
     def _run(self, label: str, text: str) -> None:
         with self._lock:
