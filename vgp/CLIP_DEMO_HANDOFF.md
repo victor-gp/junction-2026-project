@@ -35,10 +35,11 @@ py scripts\clip_demo.py --watch "$env:USERPROFILE\AppData\LocalLow\Rokoko Electr
 py scripts\replay_clips.py --watch "$env:USERPROFILE\AppData\LocalLow\Rokoko Electronics\Rokoko Studio\Exports" --per-word 1 --interval 5
 ```
 
-- The demo window comes to the front by itself on each recognised word, without taking keyboard focus. Idle and "not sure" results never raise it, flash it or speak. Other display options:
-  - `--fullscreen` (or F11) for a projector
-  - `--on-top` to keep it above everything
-  - `--no-raise` to switch the auto-raise off
+- Each recognised word (one per new recording) pops up as an always-on-top overlay card (word, FinSL gloss, confidence, file name) that fades out after 4 s. It never takes keyboard focus from Studio. Words in quick succession stack, and a click dismisses one. The main window keeps updating behind it. Idle and "not sure" results never pop up, flash or speak. Display options:
+  - `--overlay-only`: popups only, main window minimised (close it from the taskbar, or Ctrl+C, to quit)
+  - `--popup-seconds 6`, `--popup-pos bottom|top|center|top-right|bottom-right`, `--popup-alpha 0.9`
+  - `--no-popup`: old behaviour, the main window comes to the front instead (`--no-raise` turns that off too)
+  - `--fullscreen` (or F11) for a projector, `--on-top` to keep the main window above everything
 - `replay_clips.py` options:
   - default: all 36 hold-out clips
   - `--words Hello Okay "Thank you"`: only these words
