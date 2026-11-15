@@ -35,7 +35,7 @@ py scripts\clip_demo.py --watch "<Studio export folder>" --gui
 - `--gui` opens a big-text window (tkinter, included with python.org Python); without it, one line per clip in the terminal. Esc closes the window.
 - Only CSVs that appear after start-up count; `--existing` also classifies the ones already there. Sub-folders are watched too. A re-export over the same file name is classified again.
 - A file is read once it has stopped changing for 1 s (`--settle`), so Studio can finish writing it.
-- Voice: the committed clips in `audio\<Label>.wav`, made with Piper (free offline neural TTS), three voices: `hfc_female` (Hello, World), `amy` (Help, Thank you), `hfc_male` (No, Okay). Missing clip → Windows' built-in speech. `--no-voice` mutes it. To regenerate, see the top of `scripts/make_audio.py` (Piper, or ElevenLabs with `--engine elevenlabs`).
+- Voice: the committed clips in `audio\<Label>.wav`, made with Piper (free offline neural TTS), three voices: `hfc_female` (Hello, World), `amy` (Help, Thank you), `hfc_male` (No, Okay). `--lang fi` speaks Finnish instead (`audio\fi\`: Moi, Apua, Ei, Okei, Kiitos, Maailma; one male voice, `harri`). Missing clip → Windows' built-in speech. `--no-voice` mutes it. To regenerate, see the top of `scripts/make_audio.py` (Piper, or ElevenLabs with `--engine elevenlabs`).
 - Offline check without gloves: `py scripts\clip_demo.py --files ..\data\No\Clip_44.csv ...`, or `--list results\live_holdout.json --model results\live_cnn_holdout.npz` for accuracy plus a threshold sweep.
 
 Retrain after adding calibration clips (repo root, Modal):
