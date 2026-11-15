@@ -50,8 +50,6 @@ py scripts\make_audio.py --play       # plays every word through the speakers
 
 Expected: six words (Hello, Help, No, Okay, Thank you, World), each line tagged `(cached wav)`. If a line says `(system tts)`, that WAV is missing: check that `audio\<Label>.wav` exists (pull the branch again). The demo then falls back to Windows' built-in speech.
 
-Finnish voice: add `--lang fi` to both `make_audio.py --play` and `clip_demo.py` (says Moi, Apua, Ei, Okei, Kiitos, Maailma; files in `audio\fi\`, one male voice). The screen still shows English plus the FinSL gloss.
-
 Don't regenerate the clips on the demo machine. If they must change, see the top of `scripts\make_audio.py` (needs `pip install piper-tts`, or an ElevenLabs key with `--engine elevenlabs`).
 
 ## 5. Studio export folder
