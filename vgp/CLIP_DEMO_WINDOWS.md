@@ -40,21 +40,17 @@ py scripts\clip_demo.py --list results\live_holdout.json --model results\live_cn
 
 Expected: `36 labelled clips, argmax clip accuracy 89%`, and at threshold 0.5: `28 right, 0 wrong, 4/4 Idle silent`. If you see `model classes [...] != data/ folders [...]`, the `..\data\` folders on this machine differ from the seven above; pull the branch again.
 
-## 4. Voice clips (once, needs network)
+## 4. Voice (already in the repo; just check the speakers)
 
-Ask the human for the ElevenLabs API key. Put it only in the environment: never in a file, a commit or chat.
+The six spoken words are pre-generated WAV files in `audio\` (Piper, a free offline voice model; three voices: two women, one man). Nothing to install, no key, no network.
 
 ```powershell
-$env:ELEVENLABS_API_KEY = "<key>"
-py scripts\make_audio.py              # writes audio\Hello.wav ... audio\World.wav
-py scripts\make_audio.py --play       # plays every word; check the speakers
+py scripts\make_audio.py --play       # plays every word through the speakers
 ```
 
-Expected: six lines `<Label> -> ...\audio\<Label>.wav`, then six words through the speakers, each tagged `(elevenlabs)`.
+Expected: six words (Hello, Help, No, Okay, Thank you, World), each line tagged `(cached wav)`. If a line says `(system tts)`, that WAV is missing: check that `audio\<Label>.wav` exists (pull the branch again). The demo then falls back to Windows' built-in speech.
 
-- Other voice: `--voice <voice id>` (from the ElevenLabs voice library) plus `--force` to regenerate.
-- No key or no network: skip this step. The demo then uses Windows' built-in speech (`(system tts)`), which works offline.
-- `ElevenLabs HTTP 401`: wrong key. `HTTP 402`/`quota`: the account is out of credits; use the fallback.
+Don't regenerate the clips on the demo machine. If they must change, see the top of `scripts\make_audio.py` (needs `pip install piper-tts`, or an ElevenLabs key with `--engine elevenlabs`).
 
 ## 5. Studio export folder
 

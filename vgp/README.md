@@ -24,10 +24,7 @@ Grouped 5-fold CV on the 146 training clips: 79% clip accuracy. All of these cli
 
 ```powershell
 py -m pip install numpy pandas
-# once, with network: generate the voice clips into vgp\audio\ (stdlib only)
-$env:ELEVENLABS_API_KEY = "..."      # never commit the key
-py scripts\make_audio.py             # --voice <id> to pick another voice, --force to redo
-py scripts\make_audio.py --play      # check the speakers
+py scripts\make_audio.py --play      # check the speakers (voice clips are already in audio\)
 # demo
 py scripts\clip_demo.py --watch "<Studio export folder>" --gui
 ```
@@ -38,7 +35,7 @@ py scripts\clip_demo.py --watch "<Studio export folder>" --gui
 - `--gui` opens a big-text window (tkinter, included with python.org Python); without it, one line per clip in the terminal. Esc closes the window.
 - Only CSVs that appear after start-up count; `--existing` also classifies the ones already there. Sub-folders are watched too. A re-export over the same file name is classified again.
 - A file is read once it has stopped changing for 1 s (`--settle`), so Studio can finish writing it.
-- Voice: `audio\<Label>.wav` if it exists (ElevenLabs), else Windows' built-in speech (offline), else silent. `--no-voice` mutes it.
+- Voice: the committed clips in `audio\<Label>.wav`, made with Piper (free offline neural TTS), three voices: `hfc_female` (Hello, Thank you), `amy` (Help, World), `hfc_male` (No, Okay). Missing clip → Windows' built-in speech. `--no-voice` mutes it. To regenerate, see the top of `scripts/make_audio.py` (Piper, or ElevenLabs with `--engine elevenlabs`).
 - Offline check without gloves: `py scripts\clip_demo.py --files ..\data\No\Clip_44.csv ...`, or `--list results\live_holdout.json --model results\live_cnn_holdout.npz` for accuracy plus a threshold sweep.
 
 Retrain after adding calibration clips (repo root, Modal):
