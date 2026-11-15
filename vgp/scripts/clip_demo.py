@@ -180,7 +180,7 @@ def watch_loop(a, model, speaker, events: queue.Queue | None, stop: threading.Ev
             if word:
                 print(f"[{stamp}] {p.name}:  >>> {english(word).upper()}  ({finsl(word)})  "
                       f"{probs.max():.2f}   | {describe(model, probs)}  [{ms:.0f} ms]", flush=True)
-                speaker.speak(word, english(word))
+                speaker.speak(word, voice.spoken_text(word, english(word), a.lang))
             else:
                 print(f"[{stamp}] {p.name}:  (not sure)   | {describe(model, probs)}  [{ms:.0f} ms]",
                       flush=True)
@@ -259,6 +259,8 @@ def main():
     ap.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD,
                     help=f"min mean probability to say a word (default {DEFAULT_THRESHOLD})")
     ap.add_argument("--no-voice", action="store_true")
+    ap.add_argument("--lang", choices=voice.LANGS, default="en",
+                    help="spoken language: en (audio/) or fi (audio/fi/, e.g. 'Kiitos')")
     ap.add_argument("--gui", action="store_true", help="big-text window (tkinter)")
     ap.add_argument("--existing", action="store_true", help="also classify CSVs already in --watch")
     ap.add_argument("--poll", type=float, default=0.5, help="seconds between folder scans")
@@ -284,10 +286,10 @@ def main():
 
     if not Path(a.watch).is_dir():
         sys.exit(f"--watch folder not found: {a.watch}")
-    speaker = voice.Speaker(enabled=not a.no_voice)
+    speaker = voice.Speaker(voice.lang_dir(a.lang), enabled=not a.no_voice)
     if not a.no_voice:
         srcs = {speaker.source(c) for c in model.classes if c != config.IDLE_LABEL}
-        print(f"voice: {', '.join(sorted(srcs))}", flush=True)
+        print(f"voice ({a.lang}): {', '.join(sorted(srcs))}", flush=True)
     if a.gui:
         run_gui(a, model, speaker)
         return

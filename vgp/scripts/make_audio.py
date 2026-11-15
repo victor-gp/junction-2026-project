@@ -15,9 +15,14 @@ Alternative: ElevenLabs (needs an API key in the environment; never commit it):
     python scripts/make_audio.py --engine elevenlabs --force
 Each ElevenLabs voice's gender label is checked against the API before generating.
 
-Test playback:  python scripts/make_audio.py --play
+Finnish (`--lang fi`, into audio/fi/): Piper has one Finnish voice (harri, male), so
+all six Finnish words use it. Words in signrec.voice.FINNISH.
+    python scripts/make_audio.py --lang fi
+
+Test playback:  python scripts/make_audio.py --play [--lang fi]
 """
 import argparse
+import io
 import sys
 import time
 import urllib.request
@@ -36,6 +41,10 @@ PIPER_PLAN = [
     ("en_US-amy-medium", "female", ["Help", "Thank you"]),
     ("en_US-hfc_male-medium", "male", ["No", "Okay"]),   # ryan clips short words
 ]
+PIPER_PLANS = {
+    "en": PIPER_PLAN,
+    "fi": [("fi_FI-harri-medium", "male", ["Hello", "Help", "No", "Okay", "Thank you", "World"])],
+}
 PIPER_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/{lang}/{locale}/{name}/{quality}/{voice}{ext}"
 DEFAULT_MODEL_DIR = Path.home() / ".cache" / "piper-voices"
 
@@ -47,8 +56,9 @@ ELEVENLABS_PLAN = [
 ]
 
 
-def words() -> dict[str, str]:
-    return {c: GLOSS.get(c, (None, c))[1] for c in realtime.classes() if c != config.IDLE_LABEL}
+def words(lang: str = "en") -> dict[str, str]:
+    return {c: voice.spoken_text(c, GLOSS.get(c, (None, c))[1], lang)
+            for c in realtime.classes() if c != config.IDLE_LABEL}
 
 
 def check_plan(plan, todo) -> dict[str, str]:
@@ -80,17 +90,35 @@ def piper_model(name: str, model_dir: Path) -> Path:
     return onnx
 
 
+def write_padded(src, out: Path, min_edge_s: float = 0.1, thresh: int = 1000) -> None:
+    """Copy a 16-bit mono WAV to `out`, adding silence where speech starts or ends
+    within min_edge_s of the file edge (some voices emit no lead/tail silence, which
+    sounds clipped)."""
+    with wave.open(src, "rb") as r:
+        params, frames = r.getparams(), r.readframes(r.getnframes())
+    sr, width = params.framerate, params.sampwidth
+    n = len(frames) // width
+    loud = [i for i in range(0, n) if abs(int.from_bytes(frames[i * width:(i + 1) * width], "little", signed=True)) > thresh]
+    edge = int(min_edge_s * sr)
+    lead = max(0, edge - loud[0]) if loud else 0
+    tail = max(0, edge - (n - 1 - loud[-1])) if loud else 0
+    with wave.open(str(out), "wb") as w:
+        w.setparams(params)
+        w.writeframes(b"\0" * width * lead + frames + b"\0" * width * tail)
+
+
 def run_piper(todo, a) -> None:
     try:
         from piper import PiperVoice
     except ImportError:
         sys.exit("Piper is not installed: pip install piper-tts")
-    by_label = check_plan(PIPER_PLAN, todo)
-    for name, gender, labels in PIPER_PLAN:
+    plan = PIPER_PLANS[a.lang]
+    by_label = check_plan(plan, todo)
+    for name, gender, labels in plan:
         print(f"voice {name:<26} {gender:<6} -> {', '.join(labels)}")
     loaded: dict[str, object] = {}
     for label, text in todo.items():
-        out = voice.audio_path(label)
+        out = voice.audio_path(label, voice.lang_dir(a.lang))
         if out.exists() and not a.force:
             print(f"{label:<10} exists  {out}")
             continue
@@ -98,9 +126,12 @@ def run_piper(todo, a) -> None:
         if name not in loaded:
             loaded[name] = PiperVoice.load(str(piper_model(name, Path(a.model_dir))))
         out.parent.mkdir(parents=True, exist_ok=True)
-        with wave.open(str(out), "wb") as wf:
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as wf:
             loaded[name].synthesize_wav(text, wf)
-        print(f"{label:<10} -> {out} ({out.stat().st_size // 1024} KB, {name})")
+        buf.seek(0)
+        write_padded(buf, out)
+        print(f"{label:<10} {text!r:<10} -> {out} ({out.stat().st_size // 1024} KB, {name})")
 
 
 # -- ElevenLabs -------------------------------------------------------------------------
@@ -117,7 +148,7 @@ def run_elevenlabs(todo, a) -> None:
         if got != gender:
             sys.exit(f"voice {vid} is '{got}', expected '{gender}'; edit ELEVENLABS_PLAN")
     for label, text in todo.items():
-        out = voice.audio_path(label)
+        out = voice.audio_path(label, voice.lang_dir(a.lang))
         if out.exists() and not a.force:
             print(f"{label:<10} exists  {out}")
             continue
@@ -130,19 +161,20 @@ def main():
     ap.add_argument("--engine", choices=["piper", "elevenlabs"], default="piper")
     ap.add_argument("--model-dir", default=str(DEFAULT_MODEL_DIR), help="Piper voice model cache")
     ap.add_argument("--tts-model", default=voice.DEFAULT_TTS_MODEL, help="ElevenLabs model id")
+    ap.add_argument("--lang", choices=voice.LANGS, default="en", help="en -> audio/, fi -> audio/fi/")
     ap.add_argument("--force", action="store_true", help="regenerate existing clips")
     ap.add_argument("--play", action="store_true", help="only play every word (checks audio output)")
     a = ap.parse_args()
 
     if a.play:
-        sp = voice.Speaker()
-        for label, text in words().items():
+        sp = voice.Speaker(voice.lang_dir(a.lang))
+        for label, text in words(a.lang).items():
             print(f"{label:<10} ({sp.source(label)})", flush=True)
             sp._run(label, text)
             time.sleep(0.3)
         return
 
-    (run_piper if a.engine == "piper" else run_elevenlabs)(words(), a)
+    (run_piper if a.engine == "piper" else run_elevenlabs)(words(a.lang), a)
 
 
 if __name__ == "__main__":
