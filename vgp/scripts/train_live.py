@@ -6,6 +6,9 @@ On Modal (from the repo root; models/ and results/ are copied back):
     modal run modal-gpu/run.py --workdir vgp --cmd "python scripts/train_live.py --eval"
 Locally on CPU (from vgp/; a few minutes):
     uv run --extra cnn python scripts/train_live.py [--eval] [--smoke]
+With a held-out validation set (every 5th clip per class, never trained on):
+    modal run modal-gpu/run.py --workdir vgp --cmd "python scripts/train_live.py --eval --holdout 5"
+    python scripts/validate_live.py        # from vgp/, scores results/live_holdout.json
 
 Classes are the data/ sub-folders (realtime.classes()), so adding a folder (e.g. Help,
 World) just needs a rerun. Accepts Studio CSV exports and `main.py record` output.
@@ -26,8 +29,8 @@ import numpy as np  # noqa: E402
 import torch  # noqa: E402
 from torch import nn  # noqa: E402
 
-from signrec.live import (DEFAULT_MODEL, HAND_COLS, LiveMeta, LiveSignModel,  # noqa: E402
-                          dataset_windows)
+from signrec.live import (DEFAULT_MODEL, HAND_COLS, MIN_STD, LiveMeta,  # noqa: E402
+                          LiveSignModel, dataset_windows)
 from signrec.nn import SignCNN  # noqa: E402
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -47,17 +50,24 @@ class TC:
     seed: int = 0
     # augmentation (standardised units)
     noise: float = 0.05
-    scale: float = 0.1
-    offset: float = 0.3
+    scale: float = 0.5         # per-feature gain +-50%
+    offset: float = 2.0        # per-feature offset +-2 std: new sessions / the live solver shift features
     warp: float = 0.15          # global speed change +- 15%
     shift: int = 8              # random time shift (frames, edge padded)
     hand_freeze: float = 0.1    # prob. of freezing one hand (glove dropout)
+    feat_drop: float = 0.3      # prob. per feature and window of replacing it by the training mean
 
 
-def active_mask(X: np.ndarray, rel: float = 1e-3) -> np.ndarray:
-    """Features that actually vary (drops the rigid metacarpals and finger bases)."""
-    s = X.reshape(-1, X.shape[-1]).std(0)
-    return np.flatnonzero(s > rel * s.max())
+def active_mask(X: np.ndarray, rel: float = 1e-3, min_std: float = MIN_STD) -> np.ndarray:
+    """Features that actually vary (drops the rigid metacarpals and finger bases).
+
+    Studio's skeleton is rigid, so some features are constant to ~1e-6 in training but
+    differ slightly in the live solver's skeleton. Kept, they get a ~1e-6 std, and a
+    1e-3 live offset turns into a z-score in the hundreds, which saturates the model
+    (it then always predicted one class at 1.00). Hence the absolute floor, and float64:
+    in float32 the rounding error alone is ~4e-4, which let them pass the old threshold."""
+    s = X.reshape(-1, X.shape[-1]).astype(np.float64).std(0)
+    return np.flatnonzero(s > max(rel * s.max(), min_std))
 
 
 def augment_batch(x: np.ndarray, tc: TC, rng, hand_groups) -> np.ndarray:
@@ -74,6 +84,8 @@ def augment_batch(x: np.ndarray, tc: TC, rng, hand_groups) -> np.ndarray:
         if rng.random() < tc.hand_freeze:
             g = hand_groups[rng.integers(2)]
             xb[:, g] = xb[rng.integers(T), g]
+        if tc.feat_drop:
+            xb[:, rng.random(D) < tc.feat_drop] = 0.0   # standardised: 0 = training mean
         out[b] = xb
     return out.astype(np.float32)
 
@@ -84,8 +96,8 @@ def train(X, y, n_classes, tc: TC, verbose=False):
     torch.manual_seed(tc.seed)
     mask = active_mask(X)
     Xm = X[:, :, mask]
-    flat = Xm.reshape(-1, Xm.shape[-1])
-    mean, std = flat.mean(0), np.maximum(flat.std(0), 1e-6)
+    flat = Xm.reshape(-1, Xm.shape[-1]).astype(np.float64)
+    mean, std = flat.mean(0).astype(np.float32), np.maximum(flat.std(0), MIN_STD).astype(np.float32)
     Z = ((Xm - mean) / std).astype(np.float32)
     hand_groups = [np.flatnonzero(np.isin(mask, cols)) for cols in HAND_COLS]
 
@@ -121,6 +133,31 @@ def train(X, y, n_classes, tc: TC, verbose=False):
                     window_frames=X.shape[1], feature_rate_hz=0.0, width=tc.width,
                     dropout=tc.dropout, trained_on={})
     return LiveSignModel(meta, weights), model
+
+
+HOLDOUT_FILE = "live_holdout.json"
+
+
+def clip_id(path) -> str:
+    """'<Label>/<file>', the same on every machine (local, Modal)."""
+    p = Path(path)
+    return f"{p.parent.name}/{p.name}"
+
+
+def holdout_clips(paths, every: int) -> set[int]:
+    """Indices of every `every`-th clip per class, in clip-number order. Clip numbers
+    follow recording order, so the held-out set spans all recording sessions."""
+    def num(p):
+        digits = "".join(ch for ch in Path(p).stem if ch.isdigit())
+        return int(digits) if digits else 0
+    by_class: dict[str, list[int]] = {}
+    for i, p in enumerate(paths):
+        by_class.setdefault(Path(p).parent.name, []).append(i)
+    held = set()
+    for idx in by_class.values():
+        idx = sorted(idx, key=lambda i: num(paths[i]))
+        held.update(idx[every // 2::every])
+    return held
 
 
 def grouped_folds(y, groups, k, seed):
@@ -170,13 +207,45 @@ def main():
     ap.add_argument("--folds", type=int, default=5)
     ap.add_argument("--smoke", action="store_true", help="2 epochs; saves only with --out")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--holdout", type=int, default=0, metavar="N",
+                    help="keep every Nth clip per class (by clip number) out of CV and the final "
+                         "fit, for scripts/validate_live.py; 0 = train on everything")
+    ap.add_argument("--holdout-list", metavar="JSON",
+                    help='hold out the clips listed in a JSON file {"clips": ["<Label>/<file>", ...]}, '
+                         "e.g. a whole recording session for a cross-session test")
+    ap.add_argument("--include-list", metavar="JSON",
+                    help='train only on the clips listed in a JSON file {"clips": [...]}')
+    ap.add_argument("--aug-offset", type=float, default=TC.offset, help=f"default {TC.offset}")
+    ap.add_argument("--aug-scale", type=float, default=TC.scale, help=f"default {TC.scale}")
+    ap.add_argument("--feat-drop", type=float, default=TC.feat_drop, help=f"default {TC.feat_drop}")
     a = ap.parse_args()
-    tc = TC(epochs=2 if a.smoke else a.epochs)
+    tc = TC(epochs=2 if a.smoke else a.epochs, offset=a.aug_offset, scale=a.aug_scale,
+            feat_drop=a.feat_drop)
+    print(f"train config {asdict(tc)}", flush=True)
 
     t0 = time.time()
     X, y, groups, classes, paths = dataset_windows()
+    if a.include_list:
+        listed = set(json.loads(Path(a.include_list).read_text())["clips"])
+        keep = np.isin(groups, [g for g, p in enumerate(paths) if clip_id(p) in listed])
+        X, y, groups = X[keep], y[keep], groups[keep]
+        print(f"training only on the {len(listed)} clips listed in {a.include_list}")
+    if a.holdout_list:
+        listed = set(json.loads(Path(a.holdout_list).read_text())["clips"])
+        keep = ~np.isin(groups, [g for g, p in enumerate(paths) if clip_id(p) in listed])
+        X, y, groups = X[keep], y[keep], groups[keep]
+        print(f"held out {len(listed)} clips listed in {a.holdout_list}")
+    if a.holdout:
+        held = holdout_clips(paths, a.holdout)
+        keep = ~np.isin(groups, sorted(held))
+        X, y, groups = X[keep], y[keep], groups[keep]
+        rel = sorted(clip_id(paths[g]) for g in held)
+        (ROOT / "results").mkdir(exist_ok=True)
+        (ROOT / "results" / HOLDOUT_FILE).write_text(json.dumps(
+            {"every": a.holdout, "classes": classes, "clips": rel}, indent=1))
+        print(f"held out {len(rel)} clips (every {a.holdout}th per class) -> results/{HOLDOUT_FILE}")
     per_class = {c: int(len(np.unique(groups[y == i]))) for i, c in enumerate(classes)}
-    print(f"{len(X)} windows from {len(paths)} clips ({time.time() - t0:.0f}s), device {DEVICE}; "
+    print(f"{len(X)} windows from {len(np.unique(groups))} clips ({time.time() - t0:.0f}s), device {DEVICE}; "
           f"clips per class {per_class}", flush=True)
 
     if a.eval:

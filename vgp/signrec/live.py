@@ -36,6 +36,9 @@ from features import FEATURE_COLUMNS, hand_local_positions, resample  # noqa: E4
 N_RAW = len(FEATURE_COLUMNS)                    # 114
 HAND_COLS = (np.arange(0, N_RAW // 2), np.arange(N_RAW // 2, N_RAW))   # left, right
 DEFAULT_MODEL = Path(__file__).resolve().parents[1] / "models" / "live_cnn.npz"
+# Features with a training std below this (hand-size units) are treated as constant:
+# training drops them, and inference pins them to the training mean (see preprocess).
+MIN_STD = 1e-2
 
 
 # -- loading recordings ---------------------------------------------------------
@@ -174,11 +177,17 @@ class LiveSignModel:
         self.mask = np.asarray(meta.mask, dtype=np.int64)
         self.mean = np.asarray(meta.mean, np.float32)
         self.std = np.asarray(meta.std, np.float32)
+        # Near-constant in training (rigid Studio skeleton) but slightly different live:
+        # normalised, a tiny live offset becomes a huge value and saturates the model.
+        # They carry no information, so pin them to the training mean. Models trained
+        # after this fix have none; this protects older ones.
+        self.pinned = np.flatnonzero(self.std < MIN_STD)
         self.w = {k: v.astype(np.float32) for k, v in weights.items()}
 
     def preprocess(self, x: np.ndarray) -> np.ndarray:
         x = np.asarray(x, np.float32)[:, :, self.mask]
         x = (x - self.mean) / self.std
+        x[:, :, self.pinned] = 0.0
         return np.nan_to_num(x, nan=0.0, posinf=0.0, neginf=0.0)   # missing → training mean
 
     def logits(self, z: np.ndarray) -> np.ndarray:
@@ -221,6 +230,48 @@ class LiveSignModel:
                 raise RuntimeError(f"model window {meta.window_frames} frames != "
                                    f"config window {realtime.window_frames()} frames")
         return m
+
+
+# -- session alignment ----------------------------------------------------------------------
+
+class Adapter:
+    """Test-time alignment to the training distribution. Keeps the last `seconds` of
+    feature frames and maps each feature's running mean/std onto the training mean/std
+    before the model sees it. A new session (other signer, other day, live solver
+    instead of Studio) shifts every finger feature a bit; this undoes most of that.
+
+    Measured: a model trained on recording session 1 got 11% of session-2 clips right,
+    22% with strong augmentation, 51% with that plus this alignment (also when Idle
+    dominates the statistics, as it does live). The std ratio is clipped to [1/MAX_RATIO,
+    MAX_RATIO] so a feature that barely moves in a quiet stream isn't blown up."""
+
+    MAX_RATIO = 2.0
+
+    def __init__(self, model: "LiveSignModel", seconds: float = 60.0, warmup_s: float = 10.0):
+        self.model = model
+        self.maxlen = int(seconds * config.FEATURE_RATE_HZ)
+        self.warmup = int(warmup_s * config.FEATURE_RATE_HZ)
+        self.hist = np.zeros((0, N_RAW), np.float32)
+
+    def push(self, rows: np.ndarray) -> None:
+        """Add new feature frames (frames, 114); NaN rows (no glove yet) are skipped."""
+        rows = rows[~np.isnan(rows).any(axis=1)]
+        self.hist = np.concatenate([self.hist, rows])[-self.maxlen:]
+
+    @property
+    def ready(self) -> bool:
+        return len(self.hist) >= self.warmup
+
+    def __call__(self, x: np.ndarray) -> np.ndarray:
+        """Align a window (frames, 114) or batch (B, frames, 114); identity until warm."""
+        if not self.ready:
+            return x
+        m = self.model.mask
+        h = self.hist[:, m].astype(np.float64)
+        ratio = np.clip(self.model.std / np.maximum(h.std(0), 1e-6), 1 / self.MAX_RATIO, self.MAX_RATIO)
+        out = np.array(x, np.float32, copy=True)
+        out[..., m] = (out[..., m] - h.mean(0)) * ratio + self.model.mean
+        return out
 
 
 # -- decoding (shared by live runner and offline replay) -----------------------------------

@@ -31,5 +31,5 @@ HOP_S = 0.25                  # how often the model runs live
 TRAIN_HOP_S = 0.25            # step between training windows cut from a clip
 EDGE_TRIM_S = 0.0             # cut from start and end of each training clip (resting hands)
 MIN_FILL = 0.9                # min fraction of a full window that must be present live
-CONFIDENCE = 0.7              # below this top probability, the window counts as Idle
-VOTES = 4                     # consecutive windows that must agree before a word is emitted
+CONFIDENCE = 0.3              # below this top probability, the window counts as Idle
+VOTES = 2                     # consecutive windows that must agree before a word is emitted

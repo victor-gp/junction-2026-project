@@ -35,6 +35,7 @@ image = (
         ignore=[
             ".git/**",
             "**/.venv/**",
+            "venv/**",
             "**/__pycache__/**",
             "**/node_modules/**",
             "**/*.fbx",
